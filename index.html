@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Palco na Câmera</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: palco 3D em cima (mobile) / à esquerda (desktop) + "rider técnico" com controles e números à direita */
+:root{
+  --case:#121316; --panel:#1b1d21; --panel-2:#23262b; --line:#30343a;
+  --text:#ece8df; --muted:#9b9a93; --amber:#f5a524; --amber-ink:#1a1206;
+  --ok:#5fd38d; --warn:#ffb648;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--case);color:var(--text);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,6vw,40px);letter-spacing:.01em;margin:0;line-height:1;text-transform:uppercase}
+h1 span{color:var(--amber)}
+.sub{color:var(--muted);margin:0;font-size:14px}
+.grid{display:grid;gap:18px;grid-template-columns:1fr}
+@media(min-width:900px){.grid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:start}.stage-col{position:sticky;top:16px}}
+.stage{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0b0c0e;height:min(58vh,540px);min-height:320px}
+.stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.stage-tag{position:absolute;left:12px;top:12px;font-family:var(--f-mono);font-size:11px;color:var(--muted);background:rgba(18,19,22,.8);padding:4px 8px;border-radius:4px;letter-spacing:.04em}
+.ar-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+.btn{font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:.06em;text-transform:uppercase;border:0;border-radius:8px;padding:12px 18px;cursor:pointer;display:inline-flex;align-items:center;gap:10px}
+.btn-ar{background:var(--amber);color:var(--amber-ink);flex:1 1 220px;justify-content:center}
+.btn-ar:disabled{opacity:.6;cursor:progress}
+.btn-ghost{background:var(--panel-2);color:var(--text);border:1px solid var(--line);font-size:15px;padding:11px 14px}
+.btn:focus-visible,input:focus-visible,select:focus-visible,label.tog:focus-within{outline:2px solid var(--amber);outline-offset:2px}
+.note{font-size:13px;color:var(--muted);margin:8px 0 0}
+.note b{color:var(--text);font-weight:600}
+.status{font-family:var(--f-mono);font-size:12px;color:var(--warn);min-height:1em;margin-top:6px}
+
+.rider{display:grid;gap:14px;min-width:0}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:12px}
+.sec h2{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+.field{display:grid;gap:5px}
+.field label,.lab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+select,input[type=number]{width:100%;background:var(--case);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:10px;font-family:var(--f-body);font-size:16px}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+label.tog{display:flex;align-items:center;gap:8px;background:var(--case);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:14px;cursor:pointer}
+label.tog input{accent-color:var(--amber);width:18px;height:18px;margin:0}
+.file{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.file input{font-size:13px;color:var(--muted);max-width:100%}
+
+.specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.spec{background:var(--panel);padding:10px 12px;display:grid;gap:2px;min-width:0}
+.spec .k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.spec .v{font-family:var(--f-mono);font-size:17px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.spec .h{font-size:12px;color:var(--muted)}
+.spec.wide{grid-column:1/-1}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:11px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:2px}
+.pill.ok{background:rgba(95,211,141,.15);color:var(--ok)}
+.pill.no{background:rgba(255,182,72,.14);color:var(--warn)}
+.foot{font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>Palco na <span>Câmera</span></h1>
+    <p class="sub">Monte o painel de LED e o som, veja em 3D e coloque no local real pelo iPhone.</p>
+  </header>
+
+  <div class="grid">
+    <div class="stage-col">
+      <div class="stage" id="stage"><span class="stage-tag" id="tag">ARRASTE PARA GIRAR · PINÇA PARA ZOOM</span></div>
+      <div class="ar-bar">
+        <button class="btn btn-ar" id="arBtn" type="button">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+          Ver no local (AR)
+        </button>
+        <button class="btn btn-ghost" id="copyBtn" type="button">Copiar resumo</button>
+      </div>
+      <p class="status" id="status" role="status"></p>
+      <p class="note"><b>iPhone:</b> abra pelo Safari, toque em “Ver no local”, aponte para o chão e mova o celular devagar até aparecer. A peça entra em <b>escala real</b>; use o botão de foto do próprio AR para mandar pro cliente.</p>
+    </div>
+
+    <div class="rider">
+      <section class="sec" aria-labelledby="h-painel">
+        <h2 id="h-painel">Painel de LED</h2>
+        <div class="field">
+          <label for="cab">Gabinete</label>
+          <select id="cab"></select>
+        </div>
+        <div class="row3">
+          <div class="field"><label for="cols">Colunas</label><input id="cols" type="number" min="1" max="40" value="8" inputmode="numeric"></div>
+          <div class="field"><label for="rows">Linhas</label><input id="rows" type="number" min="1" max="30" value="5" inputmode="numeric"></div>
+          <div class="field"><label for="elev">Altura do chão (m)</label><input id="elev" type="number" min="0" max="10" step="0.1" value="1" inputmode="decimal"></div>
+        </div>
+        <div class="field">
+          <span class="lab">Arte no telão</span>
+          <div class="file"><input id="img" type="file" accept="image/*"><button class="btn btn-ghost" id="clearImg" type="button" hidden>Tirar arte</button></div>
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-estr">
+        <h2 id="h-estr">Estrutura e som</h2>
+        <div class="toggles">
+          <label class="tog"><input id="truss" type="checkbox" checked> Box truss Q30</label>
+          <label class="tog"><input id="pa" type="checkbox" checked> Line array</label>
+          <label class="tog"><input id="subs" type="checkbox" checked> Subwoofers</label>
+          <label class="tog"><input id="person" type="checkbox" checked> Pessoa 1,75 m</label>
+        </div>
+        <div class="row3">
+          <div class="field"><label for="la">Caixas/lado</label><input id="la" type="number" min="1" max="12" value="4" inputmode="numeric"></div>
+          <div class="field"><label for="sb">Subs/lado</label><input id="sb" type="number" min="1" max="6" value="2" inputmode="numeric"></div>
+          <div class="field"><label for="volt">Rede (V)</label><select id="volt"><option value="220" selected>220</option><option value="127">127</option></select></div>
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-calc">
+        <h2 id="h-calc">Ficha técnica</h2>
+        <div class="specs" id="specs"></div>
+        <p class="foot">Valores de referência para gabinetes comuns do mercado. Confira a ficha do fabricante antes de fechar carga e elétrica.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { USDZExporter } from 'three/addons/exporters/USDZExporter.js';
+
+const CABS = [
+  {id:'p391', nome:'500×500 mm · P3.91 indoor', w:.5, h:.5, d:.08, px:128, py:128, kg:7.5, wmax:180, wmed:60},
+  {id:'p391l',nome:'500×1000 mm · P3.91 indoor', w:.5, h:1.0, d:.08, px:128, py:256, kg:13, wmax:360, wmed:120},
+  {id:'p26',  nome:'500×500 mm · P2.6 indoor',  w:.5, h:.5, d:.08, px:192, py:192, kg:7.5, wmax:200, wmed:70},
+  {id:'p481', nome:'500×1000 mm · P4.81 outdoor',w:.5, h:1.0, d:.09, px:104, py:208, kg:14, wmax:450, wmed:150},
+  {id:'p5',   nome:'960×960 mm · P5 outdoor',   w:.96,h:.96,d:.12, px:192, py:192, kg:32, wmax:750, wmed:250},
+];
+const $ = id => document.getElementById(id);
+const cabSel = $('cab');
+CABS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;cabSel.appendChild(o);});
+
+/* ---------- renderer ---------- */
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0c0e);
+const camera = new THREE.PerspectiveCamera(45,1,.05,200);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495;
+scene.add(new THREE.HemisphereLight(0xdfe6ff,0x22201c,1.1));
+const key = new THREE.DirectionalLight(0xffffff,1.6); key.position.set(4,8,6); scene.add(key);
+const rim = new THREE.DirectionalLight(0xffc27a,.6); rim.position.set(-6,4,-5); scene.add(rim);
+
+const helpers = new THREE.Group(); scene.add(helpers);   // só na prévia
+let rig = new THREE.Group(); scene.add(rig);              // vai para o AR
+
+const M = {
+  cab:   new THREE.MeshStandardMaterial({color:0x2a2c31, metalness:.6, roughness:.45}),
+  truss: new THREE.MeshStandardMaterial({color:0xc9ccd1, metalness:.9, roughness:.3}),
+  box:   new THREE.MeshStandardMaterial({color:0x17181b, roughness:.8}),
+  grill: new THREE.MeshStandardMaterial({color:0x3a3d42, roughness:.95}),
+  person:new THREE.MeshStandardMaterial({color:0x7d8794, roughness:.9}),
+};
+
+/* ---------- tela (textura) ---------- */
+const screenCanvas = document.createElement('canvas');
+const screenTex = new THREE.CanvasTexture(screenCanvas);
+screenTex.colorSpace = THREE.SRGBColorSpace;
+const screenMat = new THREE.MeshStandardMaterial({map:screenTex, emissive:0xffffff, emissiveMap:screenTex, emissiveIntensity:.85, roughness:.6});
+let userImg = null;
+
+function drawScreen(cfg){
+  const {W,H,cols,rows,pxW,pxH} = cfg;
+  const long = 1536, a = W/H;
+  const cw = a>=1 ? long : Math.round(long*a), ch = a>=1 ? Math.round(long/a) : long;
+  screenCanvas.width = cw; screenCanvas.height = ch;
+  const g = screenCanvas.getContext('2d');
+  if(userImg){
+    const s = Math.max(cw/userImg.width, ch/userImg.height);
+    const iw = userImg.width*s, ih = userImg.height*s;
+    g.fillStyle='#000'; g.fillRect(0,0,cw,ch);
+    g.drawImage(userImg,(cw-iw)/2,(ch-ih)/2,iw,ih);
+  } else {
+    const gr = g.createLinearGradient(0,ch,cw,0);
+    gr.addColorStop(0,'#160a3a'); gr.addColorStop(.55,'#c2185b'); gr.addColorStop(1,'#ffb300');
+    g.fillStyle=gr; g.fillRect(0,0,cw,ch);
+    g.fillStyle='rgba(255,255,255,.95)'; g.textAlign='center'; g.textBaseline='middle';
+    const fs = Math.min(cw*.12, ch*.28);
+    g.font = `700 ${fs}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+    g.fillText('SUA ARTE AQUI', cw/2, ch/2 - fs*.15);
+    g.font = `500 ${fs*.28}px "JetBrains Mono", monospace`;
+    g.fillStyle='rgba(255,255,255,.8)';
+    g.fillText(`${fmt(W,2)} × ${fmt(H,2)} m · ${pxW} × ${pxH} px`, cw/2, ch/2 + fs*.6);
+  }
+  g.strokeStyle='rgba(0,0,0,.45)'; g.lineWidth=Math.max(1.5,cw/700);
+  for(let c=1;c<cols;c++){const x=c*cw/cols; g.beginPath(); g.moveTo(x,0); g.lineTo(x,ch); g.stroke();}
+  for(let r=1;r<rows;r++){const y=r*ch/rows; g.beginPath(); g.moveTo(0,y); g.lineTo(cw,y); g.stroke();}
+  screenTex.needsUpdate = true;
+}
+
+/* ---------- geometrias ---------- */
+function box(w,h,d,mat,x,y,z){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);return m;}
+function rod(len,r,mat){return new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,10),mat);}
+
+// treliça Q30 (≈29 cm): 4 banzos + travessas a cada 50 cm
+function trussSeg(len, axis, cx, cy, cz){
+  const g = new THREE.Group(), s=.145, r=.022;
+  const offs=[[s,s],[s,-s],[-s,s],[-s,-s]];
+  offs.forEach(([a,b])=>{
+    const m=rod(len,r,M.truss);
+    if(axis==='y'){m.position.set(a,0,b);} else {m.rotation.z=Math.PI/2; m.position.set(0,a,b);}
+    g.add(m);
+  });
+  const n=Math.max(1,Math.round(len/.5));
+  for(let i=0;i<=n;i++){
+    const t=-len/2+i*len/n;
+    [[0,s],[0,-s]].forEach(([_,b])=>{
+      const m=rod(s*2,.012,M.truss);
+      if(axis==='y'){m.rotation.z=Math.PI/2; m.position.set(0,t,b);} else {m.position.set(t,0,b);}
+      g.add(m);
+    });
+  }
+  g.position.set(cx,cy,cz); return g;
+}
+
+function speaker(w,h,d){
+  const g=new THREE.Group();
+  g.add(box(w,h,d,M.box,0,0,0));
+  g.add(box(w*.92,h*.8,.01,M.grill,0,0,d/2+.006));
+  return g;
+}
+
+function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
+
+/* ---------- estado e cálculos ---------- */
+function readCfg(){
+  const c = CABS.find(x=>x.id===cabSel.value)||CABS[0];
+  const clampI=(v,a,b,d)=>{v=parseInt(v,10);return isFinite(v)?Math.min(b,Math.max(a,v)):d;};
+  const clampF=(v,a,b,d)=>{v=parseFloat(String(v).replace(',','.'));return isFinite(v)?Math.min(b,Math.max(a,v)):d;};
+  const cols=clampI($('cols').value,1,40,8), rows=clampI($('rows').value,1,30,5);
+  return {c, cols, rows, elev:clampF($('elev').value,0,10,1),
+    W:cols*c.w, H:rows*c.h, pxW:cols*c.px, pxH:rows*c.py,
+    truss:$('truss').checked, pa:$('pa').checked, subs:$('subs').checked, person:$('person').checked,
+    la:clampI($('la').value,1,12,4), sb:clampI($('sb').value,1,6,2), volt:parseInt($('volt').value,10)};
+}
+const fmt=(n,d=1)=>n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtI=n=>Math.round(n).toLocaleString('pt-BR');
+const RATIOS=[['16:9',16/9],['16:10',1.6],['4:3',4/3],['21:9',21/9],['32:9',32/9],['1:1',1],['9:16',9/16]];
+
+function calc(cfg){
+  const {c,cols,rows,W,H,pxW,pxH,elev,truss,volt}=cfg;
+  const n=cols*rows, pitch=c.w*1000/c.px;
+  const wmax=n*c.wmax, wmed=n*c.wmed, amp=wmax/volt;
+  const circ = Math.ceil(wmax/(volt*16));               // disjuntor 20 A usando 80 % (16 A)
+  const portas = Math.ceil(pxW*pxH/650000);              // ~650 mil px por porta de envio (1 Gb)
+  const r=W/H; let best=RATIOS[0],bd=9; RATIOS.forEach(x=>{const d=Math.abs(x[1]-r)/x[1]; if(d<bd){bd=d;best=x;}});
+  const trussM = truss ? 2*(elev+H+.45) + (W+.6) : 0;
+  return {n,pitch,wmax,wmed,amp,circ,portas,area:W*H,kg:n*c.kg,ratio:r,best,bd,trussM,trussKg:trussM*4};
+}
+
+function renderSpecs(cfg,k){
+  const ratioOk = k.bd<.03;
+  const items=[
+    ['Tamanho', `${fmt(cfg.W,2)} × ${fmt(cfg.H,2)} m`, `${fmt(k.area,2)} m² · ${k.n} gabinetes (${cfg.cols}×${cfg.rows})`],
+    ['Resolução', `${fmtI(cfg.pxW)} × ${fmtI(cfg.pxH)} px`, `${fmt(k.pitch,2)} mm de pitch · ${fmtI(cfg.pxW*cfg.pxH)} px`],
+    ['Proporção', `${fmt(k.ratio,2)}:1 <span class="pill ${ratioOk?'ok':'no'}">${ratioOk?k.best[0]:'≈ '+k.best[0]}</span>`, ratioOk?'Encaixa no formato sem tarja':'Conteúdo vai precisar de ajuste ou tarja'],
+    ['Peso do painel', `${fmtI(k.kg)} kg`, cfg.truss?`+ treliça ≈ ${fmtI(k.trussKg)} kg (${fmt(k.trussM,1)} m de Q30)`:'Sem estrutura calculada'],
+    ['Consumo', `${fmtI(k.wmax)} W máx`, `≈ ${fmtI(k.wmed)} W em uso típico`],
+    ['Corrente', `${fmt(k.amp,1)} A em ${cfg.volt} V`, `${k.circ} circuito(s) de 20 A`],
+    ['Distância de visão', `mín. ${fmt(k.pitch,1)} m`, `ideal a partir de ${fmt(k.pitch*3,1)} m (regra prática)`],
+    ['Portas de envio', `${k.portas}`, '≈ 650 mil px por porta de rede'],
+  ];
+  $('specs').innerHTML = items.map(([a,b,h])=>`<div class="spec"><span class="k">${a}</span><span class="v">${b}</span><span class="h">${h}</span></div>`).join('');
+}
+
+/* ---------- montagem da cena ---------- */
+let usdzUrl=null, usdzDirty=true, lastCfg=null;
+
+function build(fitCam){
+  const cfg=readCfg(); lastCfg=cfg;
+  const k=calc(cfg); renderSpecs(cfg,k);
+  disposeGroup(rig); scene.remove(rig); rig=new THREE.Group(); scene.add(rig);
+  disposeGroup(helpers); helpers.clear();
+
+  const {c,W,H,elev}=cfg, d=c.d;
+  // gabinetes (traseira) + tela única na frente
+  const back=box(W,H,d,M.cab,0,elev+H/2,0); rig.add(back);
+  drawScreen(cfg);
+  const scr=new THREE.Mesh(new THREE.PlaneGeometry(W,H),screenMat);
+  scr.position.set(0,elev+H/2,d/2+.002); rig.add(scr);
+
+  let topY=elev+H, sideX=W/2;
+  if(cfg.truss){
+    const hU=elev+H+.45, xU=W/2+.3;
+    rig.add(trussSeg(hU,'y',-xU,hU/2,-d/2-.2));
+    rig.add(trussSeg(hU,'y', xU,hU/2,-d/2-.2));
+    rig.add(trussSeg(W+.6+.29,'x',0,hU-.145,-d/2-.2));
+    topY=hU; sideX=xU+.15;
+  }
+  const spW=.9, spH=.27, spD=.5, gap=.35;
+  const sx=sideX+gap+spW/2;
+  [-1,1].forEach(side=>{
+    if(cfg.pa){
+      const g=new THREE.Group(); let y=0, ang=0;
+      g.add(box(spW*.9,.06,spD*.8,M.box,0,.05,0));          // bumper
+      for(let i=0;i<cfg.la;i++){
+        ang += i===0 ? 1 : 2.5+i*.8;
+        const s=speaker(spW,spH,spD);
+        s.rotation.x=THREE.MathUtils.degToRad(ang);
+        y -= spH*.98; s.position.set(0,y+spH/2,Math.sin(THREE.MathUtils.degToRad(ang))*.08*i);
+        g.add(s);
+      }
+      g.position.set(side*sx, Math.max(topY, cfg.la*spH+ (cfg.subs?cfg.sb*.56+.3:.3)), .1);
+      rig.add(g);
+    }
+    if(cfg.subs){
+      for(let i=0;i<cfg.sb;i++){
+        const s=speaker(.6,.55,.75); s.position.set(side*sx,.275+i*.555,.15); rig.add(s);
+      }
+    }
+  });
+
+  // auxiliares da prévia
+  const size=Math.ceil(Math.max(10,W+8,sx*2+4));
+  const grid=new THREE.GridHelper(size,size,0x4a4d53,0x26282c); helpers.add(grid);
+  if(cfg.person){
+    const p=new THREE.Mesh(new THREE.CapsuleGeometry(.2,1.35,6,14),M.person);
+    p.position.set(-Math.min(W/4,1.5),.875,2); helpers.add(p);
+  }
+  $('tag').textContent = `${fmt(W,2)} × ${fmt(H,2)} M · GRADE DE 1 M`;
+
+  if(fitCam){
+    const bb=new THREE.Box3().setFromObject(rig), sz=bb.getSize(new THREE.Vector3()), ct=bb.getCenter(new THREE.Vector3());
+    const dist=Math.max(sz.x*.9, sz.y*1.4)+3;
+    camera.position.set(ct.x+dist*.35, ct.y+sz.y*.25+.5, dist);
+    controls.target.copy(ct); controls.update();
+  }
+  usdzDirty=true; scheduleExport();
+}
+
+/* ---------- AR (iPhone: AR Quick Look via USDZ) ---------- */
+const probe=document.createElement('a');
+const canQuickLook = !!(probe.relList && probe.relList.supports && probe.relList.supports('ar'));
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const status=$('status');
+let exportTimer=null, exporting=null;
+
+async function exportUSDZ(){
+  rig.updateMatrixWorld(true);
+  const ex=new USDZExporter();
+  const opts={quickLookCompatible:true, maxTextureSize:2048, ar:{anchoring:{type:'plane'},planeAnchoring:{alignment:'horizontal'}}};
+  const data = ex.parseAsync ? await ex.parseAsync(rig,opts) : await ex.parse(rig,opts);
+  if(usdzUrl) URL.revokeObjectURL(usdzUrl);
+  usdzUrl=URL.createObjectURL(new Blob([data],{type:'model/vnd.usdz+zip'}));
+  usdzDirty=false;
+}
+function scheduleExport(){
+  if(!canQuickLook) return;
+  clearTimeout(exportTimer);
+  exportTimer=setTimeout(()=>{exporting=exportUSDZ().catch(e=>{status.textContent='Erro ao preparar o AR: '+e.message;}).finally(()=>exporting=null);},700);
+}
+function openQuickLook(){
+  const a=document.createElement('a'); a.rel='ar'; a.href=usdzUrl+'#allowsContentScaling=0';
+  a.appendChild(document.createElement('img')); document.body.appendChild(a); a.click(); a.remove();
+}
+$('arBtn').addEventListener('click', async ()=>{
+  status.textContent='';
+  if(!canQuickLook){
+    status.textContent = isIOS
+      ? 'Este navegador não abre o AR. Abra este link direto no Safari do iPhone.'
+      : 'O AR funciona no iPhone/iPad pelo Safari. Aqui você confere a prévia 3D e a ficha técnica.';
+    return;
+  }
+  const btn=$('arBtn');
+  try{
+    if(usdzDirty||!usdzUrl){ btn.disabled=true; status.textContent='Preparando o modelo…'; clearTimeout(exportTimer); if(exporting) await exporting; if(usdzDirty||!usdzUrl) await exportUSDZ(); }
+    status.textContent=''; openQuickLook();
+  }catch(e){ status.textContent='Não deu para abrir o AR: '+e.message; }
+  finally{ btn.disabled=false; }
+});
+
+/* ---------- resumo ---------- */
+$('copyBtn').addEventListener('click', ()=>{
+  const cfg=lastCfg, k=calc(cfg);
+  const t=[`*Painel de LED – ${cfg.c.nome}*`,
+    `Tamanho: ${fmt(cfg.W,2)} x ${fmt(cfg.H,2)} m (${k.n} gabinetes, ${cfg.cols}x${cfg.rows})`,
+    `Resolução: ${cfg.pxW} x ${cfg.pxH} px · proporção ${k.best[0]}`,
+    `Peso do painel: ${fmtI(k.kg)} kg${cfg.truss?` + treliça Q30 ≈ ${fmtI(k.trussKg)} kg`:''}`,
+    `Consumo: ${fmtI(k.wmax)} W máx (${fmt(k.amp,1)} A em ${cfg.volt} V, ${k.circ} circuito(s) de 20 A)`,
+    `Distância ideal do público: a partir de ${fmt(k.pitch*3,1)} m`,
+    cfg.pa||cfg.subs?`Som: ${cfg.pa?`${cfg.la} caixas line array por lado`:''}${cfg.pa&&cfg.subs?' + ':''}${cfg.subs?`${cfg.sb} subs por lado`:''}`:''
+  ].filter(Boolean).join('\n');
+  const done=()=>{status.textContent='Resumo copiado. Cole no WhatsApp do cliente.';};
+  try{ navigator.clipboard.writeText(t).then(done,()=>fallback(t)); }catch(e){ fallback(t); }
+  function fallback(s){const ta=document.createElement('textarea');ta.value=s;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(_){status.textContent='Selecione e copie:\n'+s;}ta.remove();}
+});
+
+/* ---------- arte do cliente ---------- */
+$('img').addEventListener('change', e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=()=>{const im=new Image(); im.onload=()=>{userImg=im; $('clearImg').hidden=false; build(false);}; im.src=r.result;}; r.readAsDataURL(f);
+});
+$('clearImg').addEventListener('click',()=>{userImg=null; $('img').value=''; $('clearImg').hidden=true; build(false);});
+
+/* ---------- eventos ---------- */
+let raf=null;
+['cab','cols','rows','elev','truss','pa','subs','person','la','sb','volt'].forEach(id=>{
+  $(id).addEventListener('input',()=>{cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>build(id==='cab'||id==='cols'||id==='rows'));});
+});
+function resize(){const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(stage);
+(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>build(false));
+resize(); build(true);
+renderer.setAnimationLoop(()=>{controls.update(); renderer.render(scene,camera);});
+</script>
+
+</body>
+</html>
