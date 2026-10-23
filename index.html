@@ -65,6 +65,12 @@ label.tog input{accent-color:var(--amber);width:18px;height:18px;margin:0}
 .pill.ok{background:rgba(95,211,141,.15);color:var(--ok)}
 .pill.no{background:rgba(255,182,72,.14);color:var(--warn)}
 .foot{font-size:12px;color:var(--muted)}
+#xrOverlay{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#xrOverlay[hidden]{display:none!important}
+.xr-msg{align-self:center;margin:0;background:rgba(18,19,22,.85);color:var(--text);padding:8px 14px;border-radius:6px;font-size:15px;text-align:center}
+.xr-bar{pointer-events:auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.xr-bar .btn{font-size:15px;padding:12px 14px}
+.xr-bar .btn-ar{flex:0 0 auto}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -74,7 +80,7 @@ label.tog input{accent-color:var(--amber);width:18px;height:18px;margin:0}
 <div class="wrap">
   <header>
     <h1>Palco na <span>Câmera</span></h1>
-    <p class="sub">Monte o painel de LED e o som, veja em 3D e coloque no local real pelo iPhone.</p>
+    <p class="sub">Monte o painel de LED e o som, veja em 3D e coloque no local real pelo celular.</p>
   </header>
 
   <div class="grid">
@@ -88,7 +94,7 @@ label.tog input{accent-color:var(--amber);width:18px;height:18px;margin:0}
         <button class="btn btn-ghost" id="copyBtn" type="button">Copiar resumo</button>
       </div>
       <p class="status" id="status" role="status"></p>
-      <p class="note"><b>iPhone:</b> abra pelo Safari, toque em “Ver no local”, aponte para o chão e mova o celular devagar até aparecer. A peça entra em <b>escala real</b>; use o botão de foto do próprio AR para mandar pro cliente.</p>
+      <p class="note"><b>iPhone:</b> abra no Safari. <b>Android:</b> abra no Chrome. Toque em “Ver no local”, aponte para o chão e mova o celular devagar. No Android, toque na tela para fixar a estrutura. Tudo entra em <b>escala real</b>.</p>
     </div>
 
     <div class="rider">
@@ -133,6 +139,16 @@ label.tog input{accent-color:var(--amber);width:18px;height:18px;margin:0}
   </div>
 </div>
 
+<div id="xrOverlay" hidden>
+  <p class="xr-msg" id="xrMsg">Aponte para o chão e mova o celular devagar…</p>
+  <div class="xr-bar">
+    <button class="btn btn-ghost" id="xrRotL" type="button" aria-label="Girar para a esquerda">⟲ 15°</button>
+    <button class="btn btn-ghost" id="xrRotR" type="button" aria-label="Girar para a direita">15° ⟳</button>
+    <button class="btn btn-ghost" id="xrMove" type="button">Reposicionar</button>
+    <button class="btn btn-ar" id="xrExit" type="button">Sair</button>
+  </div>
+</div>
+
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
 </script>
@@ -167,7 +183,8 @@ const key = new THREE.DirectionalLight(0xffffff,1.6); key.position.set(4,8,6); s
 const rim = new THREE.DirectionalLight(0xffc27a,.6); rim.position.set(-6,4,-5); scene.add(rim);
 
 const helpers = new THREE.Group(); scene.add(helpers);   // só na prévia
-let rig = new THREE.Group(); scene.add(rig);              // vai para o AR
+const anchor = new THREE.Group(); scene.add(anchor);     // posição no AR do Android
+let rig = new THREE.Group(); anchor.add(rig);              // vai para o AR
 
 const M = {
   cab:   new THREE.MeshStandardMaterial({color:0x2a2c31, metalness:.6, roughness:.45}),
@@ -294,7 +311,7 @@ let usdzUrl=null, usdzDirty=true, lastCfg=null;
 function build(fitCam){
   const cfg=readCfg(); lastCfg=cfg;
   const k=calc(cfg); renderSpecs(cfg,k);
-  disposeGroup(rig); scene.remove(rig); rig=new THREE.Group(); scene.add(rig);
+  disposeGroup(rig); anchor.remove(rig); rig=new THREE.Group(); anchor.add(rig);
   disposeGroup(helpers); helpers.clear();
 
   const {c,W,H,elev}=cfg, d=c.d;
@@ -346,8 +363,8 @@ function build(fitCam){
 
   if(fitCam){
     const bb=new THREE.Box3().setFromObject(rig), sz=bb.getSize(new THREE.Vector3()), ct=bb.getCenter(new THREE.Vector3());
-    const dist=Math.max(sz.x*.9, sz.y*1.4)+3;
-    camera.position.set(ct.x+dist*.35, ct.y+sz.y*.25+.5, dist);
+    const tf=2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); const dist=Math.max(sz.y/tf, sz.x/(tf*Math.max(camera.aspect,.3)))*1.12+sz.z+1;
+    camera.position.set(ct.x+dist*.15, ct.y+sz.y*.15+.4, dist);
     controls.target.copy(ct); controls.update();
   }
   usdzDirty=true; scheduleExport();
@@ -378,12 +395,72 @@ function openQuickLook(){
   const a=document.createElement('a'); a.rel='ar'; a.href=usdzUrl+'#allowsContentScaling=0';
   a.appendChild(document.createElement('img')); document.body.appendChild(a); a.click(); a.remove();
 }
+/* ---------- AR Android (WebXR no Chrome) ---------- */
+let xrOK=false;
+if(navigator.xr && navigator.xr.isSessionSupported){
+  navigator.xr.isSessionSupported('immersive-ar').then(v=>{xrOK=v;}).catch(()=>{});
+}
+const isAndroid=/Android/i.test(navigator.userAgent);
+const reticle=new THREE.Mesh(new THREE.RingGeometry(.18,.24,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xf5a524}));
+reticle.matrixAutoUpdate=false; reticle.visible=false; scene.add(reticle);
+let xrSession=null, hitSource=null, placed=false, prevBg=null;
+const xrOverlay=$('xrOverlay'), xrMsg=$('xrMsg');
+xrOverlay.addEventListener('beforexrselect',e=>e.preventDefault());
+
+async function startXR(){
+  renderer.xr.enabled=true;
+  const session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay','local-floor'],domOverlay:{root:xrOverlay}});
+  xrSession=session; placed=false;
+  renderer.xr.setReferenceSpaceType('local');
+  await renderer.xr.setSession(session);
+  const viewer=await session.requestReferenceSpace('viewer');
+  hitSource=await session.requestHitTestSource({space:viewer});
+  prevBg=scene.background; scene.background=null; helpers.visible=false; anchor.visible=false;
+  xrOverlay.hidden=false; xrMsg.textContent='Aponte para o chão e mova o celular devagar…';
+  session.addEventListener('select',placeHere);
+  session.addEventListener('end',()=>{
+    hitSource=null; xrSession=null; reticle.visible=false; renderer.xr.enabled=false;
+    scene.background=prevBg; helpers.visible=true; anchor.visible=true;
+    anchor.position.set(0,0,0); anchor.rotation.set(0,0,0);
+    xrOverlay.hidden=true; resize();
+  });
+}
+function placeHere(){
+  if(!reticle.visible) return;
+  const p=new THREE.Vector3().setFromMatrixPosition(reticle.matrix);
+  const cam=renderer.xr.getCamera(); const c=new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld);
+  anchor.position.copy(p);
+  anchor.rotation.set(0,Math.atan2(c.x-p.x,c.z-p.z),0);
+  anchor.visible=true; placed=true; reticle.visible=false;
+  xrMsg.textContent='Pronto. Ande em volta. Use os botões para girar ou reposicionar.';
+}
+function xrFrame(frame){
+  if(!hitSource||placed) return;
+  const res=frame.getHitTestResults(hitSource);
+  if(res.length){
+    const pose=res[0].getPose(renderer.xr.getReferenceSpace());
+    reticle.visible=true; reticle.matrix.fromArray(pose.transform.matrix);
+    xrMsg.textContent='Toque na tela para colocar aqui';
+  } else reticle.visible=false;
+}
+$('xrRotL').addEventListener('click',()=>{anchor.rotation.y+=Math.PI/12;});
+$('xrRotR').addEventListener('click',()=>{anchor.rotation.y-=Math.PI/12;});
+$('xrMove').addEventListener('click',()=>{placed=false; anchor.visible=false; xrMsg.textContent='Aponte para o chão…';});
+$('xrExit').addEventListener('click',()=>{xrSession&&xrSession.end();});
+
 $('arBtn').addEventListener('click', async ()=>{
   status.textContent='';
+  if(!canQuickLook && xrOK){
+    try{ await startXR(); }
+    catch(e){ status.textContent='Não deu para abrir o AR: '+e.message+'. Abra o link direto no Chrome.'; }
+    return;
+  }
   if(!canQuickLook){
     status.textContent = isIOS
-      ? 'Este navegador não abre o AR. Abra este link direto no Safari do iPhone.'
-      : 'O AR funciona no iPhone/iPad pelo Safari. Aqui você confere a prévia 3D e a ficha técnica.';
+      ? 'Este navegador não abre o AR. Abra o link direto no Safari do iPhone.'
+      : isAndroid
+        ? 'O AR não abre dentro deste app. Abra o link direto no Chrome do Android (com Google Play Services para AR instalado).'
+        : 'O AR funciona no celular: Safari no iPhone ou Chrome no Android. Aqui você confere a prévia 3D e a ficha técnica.';
     return;
   }
   const btn=$('arBtn');
@@ -422,11 +499,14 @@ let raf=null;
 ['cab','cols','rows','elev','truss','pa','subs','person','la','sb','volt'].forEach(id=>{
   $(id).addEventListener('input',()=>{cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>build(id==='cab'||id==='cols'||id==='rows'));});
 });
-function resize(){const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix();}
+function resize(){if(renderer.xr.isPresenting)return;const r=stage.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix();}
 new ResizeObserver(resize).observe(stage);
 (document.fonts?document.fonts.ready:Promise.resolve()).then(()=>build(false));
 resize(); build(true);
-renderer.setAnimationLoop(()=>{controls.update(); renderer.render(scene,camera);});
+renderer.setAnimationLoop((t,frame)=>{
+  if(frame) xrFrame(frame); else controls.update();
+  renderer.render(scene,camera);
+});
 </script>
 
 </body>
